@@ -3,6 +3,7 @@ locals {
   west_1_base = "10.1.0.0/16"
 }
 
+# East cost VPC
 resource "aws_vpc" "east_1" {
   provider   = aws.us-east-1
   cidr_block = local.east_1_base
@@ -42,13 +43,13 @@ resource "aws_route_table" "second_rt_east" {
 }
 
 resource "aws_route_table_association" "public_east" {
- provider = aws.us-east-1
- count = 2
- subnet_id      = element(aws_subnet.east_1_subnets[*].id, count.index)
- route_table_id = aws_route_table.second_rt_east.id 
+  provider       = aws.us-east-1
+  count          = 2
+  subnet_id      = element(aws_subnet.east_1_subnets[*].id, count.index)
+  route_table_id = aws_route_table.second_rt_east.id
 }
 
-
+# West coast VPC
 resource "aws_vpc" "west_1" {
   provider   = aws.us-west-1
   cidr_block = local.west_1_base
@@ -79,7 +80,7 @@ resource "aws_internet_gateway" "west_gw" {
 
 resource "aws_route_table" "second_rt_west" {
   provider = aws.us-west-1
-  vpc_id   = aws_vpc.west_1.id 
+  vpc_id   = aws_vpc.west_1.id
 
   route {
     cidr_block = "0.0.0.0/0"
@@ -88,12 +89,13 @@ resource "aws_route_table" "second_rt_west" {
 }
 
 resource "aws_route_table_association" "public_west" {
- provider = aws.us-west-1
- count = 2
- subnet_id      = element(aws_subnet.west_1_subnets[*].id, count.index)
- route_table_id = aws_route_table.second_rt_west.id 
+  provider       = aws.us-west-1
+  count          = 2
+  subnet_id      = element(aws_subnet.west_1_subnets[*].id, count.index)
+  route_table_id = aws_route_table.second_rt_west.id
 }
 
+# Establish VPC peering between east & west
 resource "aws_vpc_peering_connection" "peer_origin" {
   provider    = aws.us-east-1
   vpc_id      = aws_vpc.east_1.id
@@ -146,3 +148,17 @@ resource "aws_security_group" "allow_ssh_west" {
   }
 }
 
+# route tables to allow communication between peered VPCs
+resource "aws_route" "east_to_west" {
+  provider                  = aws.us-east-1
+  route_table_id            = aws_route_table.second_rt_east.id
+  destination_cidr_block    = local.west_1_base
+  vpc_peering_connection_id = aws_vpc_peering_connection.peer_origin.id
+}
+
+resource "aws_route" "west_to_east" {
+  provider                  = aws.us-west-1
+  route_table_id            = aws_route_table.second_rt_west.id
+  destination_cidr_block    = local.east_1_base
+  vpc_peering_connection_id = aws_vpc_peering_connection.peer_origin.id
+}
