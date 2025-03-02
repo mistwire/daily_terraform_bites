@@ -1,12 +1,18 @@
-locals {
-  east_1_base = "10.0.0.0/16"
-  west_1_base = "10.1.0.0/16"
+# Get my IP address for security rules:
+data "http" "myip" {
+  url = "https://api.ipify.org?format=json"
 }
+
+# Create a local value for string interpolation:
+locals {
+  my_ip = jsondecode(data.http.myip.response_body).ip
+}
+
 
 # East cost VPC
 resource "aws_vpc" "east_1" {
   provider   = aws.us-east-1
-  cidr_block = local.east_1_base
+  cidr_block = var.east_1_base
 
   tags = {
     Name = "first"
@@ -17,7 +23,7 @@ resource "aws_subnet" "east_1_subnets" {
   count      = 4
   provider   = aws.us-east-1
   vpc_id     = aws_vpc.east_1.id
-  cidr_block = cidrsubnet(local.east_1_base, 8, count.index)
+  cidr_block = cidrsubnet(var.east_1_base, 8, count.index)
 
   tags = {
     Name = "subnet-${count.index}"
@@ -52,7 +58,7 @@ resource "aws_route_table_association" "public_east" {
 # West coast VPC
 resource "aws_vpc" "west_1" {
   provider   = aws.us-west-1
-  cidr_block = local.west_1_base
+  cidr_block = var.west_1_base
 
   tags = {
     Name = "second"
@@ -63,7 +69,7 @@ resource "aws_subnet" "west_1_subnets" {
   count      = 4
   provider   = aws.us-west-1
   vpc_id     = aws_vpc.west_1.id
-  cidr_block = cidrsubnet(local.west_1_base, 8, count.index)
+  cidr_block = cidrsubnet(var.west_1_base, 8, count.index)
 
   tags = {
     Name = "subnet-${count.index}"
@@ -152,13 +158,13 @@ resource "aws_security_group" "allow_ssh_west" {
 resource "aws_route" "east_to_west" {
   provider                  = aws.us-east-1
   route_table_id            = aws_route_table.second_rt_east.id
-  destination_cidr_block    = local.west_1_base
+  destination_cidr_block    = var.west_1_base
   vpc_peering_connection_id = aws_vpc_peering_connection.peer_origin.id
 }
 
 resource "aws_route" "west_to_east" {
   provider                  = aws.us-west-1
   route_table_id            = aws_route_table.second_rt_west.id
-  destination_cidr_block    = local.east_1_base
+  destination_cidr_block    = var.east_1_base
   vpc_peering_connection_id = aws_vpc_peering_connection.peer_origin.id
 }
